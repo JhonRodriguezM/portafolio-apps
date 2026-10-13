@@ -104,7 +104,7 @@ APPS = [
         "texto": "Regresión logística que estima la probabilidad de lluvia a partir de "
                  "humedad, temperatura y viento, con umbral de decisión ajustable.",
         "etiqueta": "Logística",
-        "url": "",  # Pendiente: URL de la app desplegada del repo regresion_logistica
+        "url": "https://jhonrodriguez-logistica.streamlit.app/",
     },
     {
         "titulo": "KNN: ¿de qué grupo soy?",
