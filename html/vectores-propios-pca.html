@@ -1,0 +1,765 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Valores y vectores propios: de la matriz al PCA</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
+<style>
+:root{
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px);
+  padding-bottom:env(safe-area-inset-bottom,0px);
+  --papel:#EEF2F5; --panel:#FFFFFF; --tinta:#1B2A3A; --suave:#5B6B7C;
+  --reticula:#D5DEE6; --eje:#9AAAB9;
+  --v:#2F5D8C; --av:#A2327F; --e1:#0F7B6C; --e2:#B7791F; --punto:#6A7B8C;
+  --borde:#C9D3DC;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --papel:#131B24; --panel:#1B2632; --tinta:#E4ECF3; --suave:#9DB0C2;
+    --reticula:#263444; --eje:#4A5D70;
+    --v:#7FB0E6; --av:#E27CC4; --e1:#3CC4AE; --e2:#E8B04E; --punto:#8FA3B6;
+    --borde:#2C3C4D;
+  }
+}
+:root[data-theme="dark"]{
+  --papel:#131B24; --panel:#1B2632; --tinta:#E4ECF3; --suave:#9DB0C2;
+  --reticula:#263444; --eje:#4A5D70;
+  --v:#7FB0E6; --av:#E27CC4; --e1:#3CC4AE; --e2:#E8B04E; --punto:#8FA3B6;
+  --borde:#2C3C4D;
+}
+*,*::before,*::after{box-sizing:inherit}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--papel);color:var(--tinta);
+  font-family:"Atkinson Hyperlegible",system-ui,-apple-system,"Segoe UI",sans-serif;
+  font-size:17px;line-height:1.5}
+header{max-width:1200px;margin:0 auto;padding:28px 20px 8px}
+h1{font-size:clamp(1.6rem,3.2vw,2.3rem);line-height:1.15;margin:0 0 6px;font-weight:700;letter-spacing:-0.01em}
+header p{margin:0;color:var(--suave);max-width:70ch}
+nav{max-width:1200px;margin:18px auto 0;padding:0 20px;display:flex;gap:6px;flex-wrap:wrap}
+nav button{font:inherit;font-size:.95rem;border:1px solid var(--borde);background:transparent;color:var(--tinta);
+  padding:8px 14px;border-radius:999px;cursor:pointer}
+nav button[aria-selected="true"]{background:var(--tinta);color:var(--papel);border-color:var(--tinta)}
+nav button:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid var(--e1);outline-offset:2px}
+main{max-width:1200px;margin:0 auto;padding:16px 20px 40px}
+.paso{display:none;grid-template-columns:minmax(260px,340px) 1fr;gap:20px;align-items:start}
+.paso.activo{display:grid}
+@media (max-width:820px){.paso.activo{grid-template-columns:1fr}.lienzo{order:-1}}
+.controles{background:var(--panel);border:1px solid var(--borde);border-radius:14px;padding:18px}
+.controles h2{font-size:1.2rem;margin:0 0 6px}
+.controles p{margin:0 0 12px;color:var(--suave);font-size:.95rem}
+.fila{display:grid;grid-template-columns:28px 1fr 46px;align-items:center;gap:8px;margin:6px 0}
+.fila label{font-weight:700}
+.fila output{text-align:right;font-variant-numeric:tabular-nums}
+input[type=range]{width:100%;accent-color:var(--tinta)}
+.botones{display:flex;flex-wrap:wrap;gap:6px;margin:10px 0}
+.botones button,.accion{font:inherit;font-size:.88rem;border:1px solid var(--borde);background:var(--papel);
+  color:var(--tinta);padding:6px 10px;border-radius:8px;cursor:pointer}
+.accion,.botones .accion{font-weight:700;background:var(--tinta);color:var(--papel);border-color:var(--tinta)}
+.matriz{display:inline-grid;grid-template-columns:auto auto;gap:2px 16px;padding:4px 12px;
+  border-left:2px solid var(--tinta);border-right:2px solid var(--tinta);font-variant-numeric:tabular-nums;margin:4px 0}
+.lectura{margin-top:12px;padding-top:12px;border-top:1px solid var(--borde);font-size:.95rem}
+.lectura div{margin:4px 0}
+.clave{display:inline-block;width:12px;height:12px;border-radius:3px;vertical-align:-1px;margin-right:6px}
+.aviso{margin-top:10px;padding:10px 12px;border-radius:10px;background:var(--papel);font-size:.95rem;min-height:3em}
+.aviso.exito{outline:2px solid var(--e1)}
+.lienzo{background:var(--panel);border:1px solid var(--borde);border-radius:14px;padding:10px;position:relative}
+canvas{display:block;width:100%;height:auto;touch-action:none;border-radius:8px}
+.leyenda{display:flex;flex-wrap:wrap;gap:14px;font-size:.9rem;color:var(--suave);padding:8px 6px 2px}
+.mini{margin-top:10px}
+.mini h3{font-size:.95rem;margin:0 0 4px}
+details{margin-top:12px;font-size:.95rem}
+summary{cursor:pointer;font-weight:700}
+.preguntas{grid-column:1/-1;background:var(--panel);border:1px solid var(--borde);border-left:5px solid var(--tinta);border-radius:14px;padding:22px 26px}
+.preguntas h3{font-size:1.1rem;margin:0 0 4px}
+.preguntas > p{margin:0 0 14px;color:var(--suave);max-width:75ch}
+.preguntas ol{margin:0;padding-left:1.4em;display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:14px 36px}
+.preguntas li{max-width:68ch;padding-left:4px}
+.preguntas li::marker{font-weight:700}
+.preguntas .probar{display:block;color:var(--suave);font-size:.93rem;margin-top:3px}
+.preguntas .probar b{color:var(--tinta)}
+.explica{grid-column:1/-1;background:var(--panel);border:1px solid var(--borde);border-radius:14px;padding:22px 26px;
+  display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:8px 36px}
+.explica h3{font-size:1.1rem;margin:14px 0 4px}
+.explica h3:first-child{margin-top:0}
+.explica p,.explica li{max-width:68ch;margin:0 0 10px}
+.explica ol,.explica ul{padding-left:1.2em;margin:0 0 10px}
+.explica .formula{font-size:1.05rem;padding:8px 12px;background:var(--papel);border-radius:8px;display:inline-block;margin:2px 0 10px;font-variant-numeric:tabular-nums}
+.explica .aqui{color:var(--suave);font-style:italic}
+@media (prefers-reduced-motion: reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<header>
+  <h1>Valores y vectores propios: de la matriz al PCA</h1>
+  <p>Cuatro pasos, de lo más básico a la aplicación: qué hace una matriz con el plano, qué direcciones no gira, por qué esas direcciones describen la dispersión de unos datos y cómo el Análisis de Componentes Principales (PCA) las usa para reducir dimensiones.</p>
+</header>
+
+<nav role="tablist" aria-label="Pasos">
+  <button role="tab" aria-selected="true" data-paso="T">1. Transformación lineal</button>
+  <button role="tab" aria-selected="false" data-paso="1">2. Valores y vectores propios</button>
+  <button role="tab" aria-selected="false" data-paso="2">3. Covarianza y varianza</button>
+  <button role="tab" aria-selected="false" data-paso="3">4. PCA: reducir dimensiones</button>
+</nav>
+
+<main>
+  <!-- PASO T: TRANSFORMACIÓN LINEAL -->
+  <section class="paso activo" id="pasoT" role="tabpanel">
+    <div class="controles">
+      <h2>Una matriz mueve todo el plano</h2>
+      <p>Cambia los números de la matriz o arrastra directamente las puntas de <b style="color:var(--v)">î</b> y <b style="color:var(--av)">ĵ</b>. Observa qué le pasa a la cuadrícula, al cuadrado y a la letra F.</p>
+      <div class="fila"><label for="ta">a</label><input type="range" id="ta" min="-3" max="3" step="0.1" value="1.5"><output id="ota"></output></div>
+      <div class="fila"><label for="tc">c</label><input type="range" id="tc" min="-3" max="3" step="0.1" value="0.5"><output id="otc"></output></div>
+      <div class="fila"><label for="tb">b</label><input type="range" id="tb" min="-3" max="3" step="0.1" value="-0.5"><output id="otb"></output></div>
+      <div class="fila"><label for="td">d</label><input type="range" id="td" min="-3" max="3" step="0.1" value="1"><output id="otd"></output></div>
+      <div>A = <span class="matriz" id="verMatrizT"></span></div>
+      <div class="botones" aria-label="Transformaciones de ejemplo">
+        <button data-t="1,0,0,1">Identidad</button>
+        <button data-t="2,0,0,2">Escalar</button>
+        <button data-t="2,0,0,0.5">Estirar</button>
+        <button data-t="1,1,0,1">Cizalla</button>
+        <button data-t="0.7071,-0.7071,0.7071,0.7071">Rotar 45°</button>
+        <button data-t="-1,0,0,1">Reflejar</button>
+        <button data-t="1,2,0.5,1">Aplastar</button>
+      </div>
+      <button class="accion" id="animarT">Ver la transformación paso a paso</button>
+      <div class="lectura" id="lectT"></div>
+      <div class="aviso" id="avisoT" aria-live="polite"></div>
+    </div>
+    <div class="lienzo">
+      <canvas id="cT" width="800" height="600" aria-label="Plano transformado por la matriz, con los vectores base, un cuadrado y la letra F"></canvas>
+      <div class="leyenda">
+        <span><span class="clave" style="background:var(--v)"></span>î = (1, 0) transformado: primera columna</span>
+        <span><span class="clave" style="background:var(--av)"></span>ĵ = (0, 1) transformado: segunda columna</span>
+        <span><span class="clave" style="background:var(--e1)"></span>cuadrado unitario</span>
+      </div>
+    </div>
+    <div class="explica">
+      <div>
+        <h3>¿Qué es una transformación lineal?</h3>
+        <p>Es una regla que mueve cada punto del plano a otro punto, con dos condiciones: el origen no se mueve y las líneas rectas siguen siendo rectas. Por eso la cuadrícula puede estirarse, inclinarse o girar, pero sus líneas siempre quedan paralelas y con la misma separación entre ellas.</p>
+        <h3>La matriz guarda solo dos datos</h3>
+        <p>Basta saber a dónde van los dos vectores base: <b>î = (1, 0)</b> y <b>ĵ = (0, 1)</b>. La primera columna de la matriz es el destino de î y la segunda, el de ĵ. Cualquier otro vector es una combinación de ambos, así que su destino queda determinado:</p>
+        <div class="formula">A·(x, y) = x·(a, c) + y·(b, d)</div>
+        <p>Por ejemplo, el punto (2, 1) va a 2 veces la primera columna más 1 vez la segunda.</p>
+      </div>
+      <div>
+        <h3>El determinante mide el cambio de área</h3>
+        <p>El cuadrado de área 1 se convierte en un paralelogramo de área |det(A)| = |a·d − b·c|.</p>
+        <ul>
+          <li><b>det &gt; 1</b>: el plano se expande.</li>
+          <li><b>0 &lt; det &lt; 1</b>: el plano se encoge.</li>
+          <li><b>det &lt; 0</b>: además, el plano se voltea como un espejo (fíjate en la F).</li>
+          <li><b>det = 0</b>: todo el plano se aplasta sobre una línea y se pierde una dimensión.</li>
+        </ul>
+        <h3>¿Por qué importa en datos?</h3>
+        <p>Una tabla de datos con dos columnas es una nube de puntos en el plano. Multiplicarla por una matriz es aplicarle una de estas transformaciones. PCA es, en el fondo, una <b>rotación elegida con cuidado</b> seguida de un <b>aplastamiento</b> sobre las direcciones que más información conservan. Los siguientes pasos explican cómo se elige esa rotación.</p>
+      </div>
+    </div>
+    <div class="preguntas">
+      <h3>Preguntas</h3>
+      <p>Responde en tu cuaderno usando los controles de arriba.</p>
+      <ol>
+        <li>¿Qué vector se mueve cuando cambias solo <b>a</b>?<span class="probar"><b>Prueba:</b> pulsa <i>Identidad</i> y mueve solo el deslizador <b>a</b>.</span></li>
+        <li>¿Cuánto vale el determinante cuando el cuadrado queda aplastado en una línea?<span class="probar"><b>Prueba:</b> pulsa <i>Aplastar</i> y mira la lectura.</span></li>
+      </ol>
+    </div>
+  </section>
+  <!-- PASO 1 -->
+  <section class="paso" id="paso1" role="tabpanel">
+    <div class="controles">
+      <h2>Direcciones que no giran</h2>
+      <p>Ahora sigue un solo vector. Arrastra <b style="color:var(--v)">v</b> en el plano. La matriz lo convierte en <b style="color:var(--av)">A·v</b>. Casi siempre lo gira, excepto en unas direcciones especiales.</p>
+      <div class="fila"><label for="a">a</label><input type="range" id="a" min="-3" max="3" step="0.1" value="2"><output id="oa">2.0</output></div>
+      <div class="fila"><label for="b">b</label><input type="range" id="b" min="-3" max="3" step="0.1" value="1"><output id="ob">1.0</output></div>
+      <div class="fila"><label for="c">c</label><input type="range" id="c" min="-3" max="3" step="0.1" value="1"><output id="oc">1.0</output></div>
+      <div class="fila"><label for="d">d</label><input type="range" id="d" min="-3" max="3" step="0.1" value="2"><output id="od">2.0</output></div>
+      <div>A = <span class="matriz" id="verMatriz"></span></div>
+      <div class="botones" aria-label="Ejemplos de matrices">
+        <button data-m="2,1,1,2">Simétrica</button>
+        <button data-m="2,0,0,0.5">Estirar ejes</button>
+        <button data-m="1,1,0,1">Cizalla</button>
+        <button data-m="0,-1,1,0">Rotación</button>
+        <button data-m="1,0,0,-1">Reflexión</button>
+      </div>
+      <button class="accion" id="barrido">Girar v una vuelta completa</button>
+      <div class="lectura" id="lect1"></div>
+      <div class="aviso" id="aviso1" aria-live="polite"></div>
+    </div>
+    <div class="lienzo">
+      <canvas id="c1" width="800" height="600" aria-label="Plano con el vector v, su transformado A·v y las direcciones propias"></canvas>
+      <div class="leyenda">
+        <span><span class="clave" style="background:var(--v)"></span>v</span>
+        <span><span class="clave" style="background:var(--av)"></span>A·v</span>
+        <span><span class="clave" style="background:var(--e1)"></span>dirección propia 1</span>
+        <span><span class="clave" style="background:var(--e2)"></span>dirección propia 2</span>
+        <span>La cuadrícula tenue muestra cómo A deforma todo el plano</span>
+      </div>
+    </div>
+    <div class="explica">
+      <div>
+        <h3>La definición</h3>
+        <p>En el paso anterior viste que una matriz casi siempre cambia la dirección de los vectores. Un <b>vector propio</b> es una excepción: la matriz solo lo estira, lo encoge o lo voltea, pero lo deja sobre su misma línea. El número que lo escala es su <b>valor propio</b> λ:</p>
+        <div class="formula">A·v = λ·v</div>
+        <h3>Cómo leer λ</h3>
+        <ul>
+          <li><b>λ &gt; 1</b>: en esa dirección la matriz estira.</li>
+          <li><b>0 &lt; λ &lt; 1</b>: en esa dirección encoge.</li>
+          <li><b>λ &lt; 0</b>: voltea el vector al lado contrario.</li>
+          <li><b>λ = 0</b>: aplasta esa dirección hasta el origen.</li>
+          <li><b>λ complejo</b>: no hay dirección que se conserve, como en una rotación.</li>
+        </ul>
+      </div>
+      <div>
+        <h3>Cómo se calculan</h3>
+        <p>Si A·v = λ·v, entonces (A − λI)·v = 0 con v distinto de cero. Eso solo es posible si la matriz A − λI aplasta el plano, es decir, si su determinante vale cero:</p>
+        <div class="formula">det(A − λI) = λ² − (a + d)·λ + (a·d − b·c) = 0</div>
+        <p>Las dos raíces son los valores propios. Su suma es la traza (a + d) y su producto, el determinante. Compruébalo en la lectura de la izquierda.</p>
+        <h3>El caso que importa para PCA</h3>
+        <p>Pulsa <b>Simétrica</b>. Cuando b = c, la matriz siempre tiene valores propios reales y sus dos vectores propios son <b>perpendiculares</b>. Guarda esta idea: la matriz de covarianza de unos datos siempre es simétrica.</p>
+      </div>
+    </div>
+    <div class="preguntas">
+      <h3>Preguntas</h3>
+      <p>Responde en tu cuaderno usando los controles de arriba.</p>
+      <ol>
+        <li>¿Cuántas veces aparece el aviso «v es un vector propio» en una vuelta completa?<span class="probar"><b>Prueba:</b> pulsa <i>Simétrica</i> y luego <i>Girar v una vuelta completa</i>.</span></li>
+        <li>Con la matriz simétrica, ¿las dos líneas punteadas forman un ángulo recto?<span class="probar"><b>Prueba:</b> pulsa <i>Simétrica</i> y observa las líneas punteadas.</span></li>
+      </ol>
+    </div>
+  </section>
+
+  <!-- PASO 2 -->
+  <section class="paso" id="paso2" role="tabpanel">
+    <div class="controles">
+      <h2>Los datos también tienen una matriz</h2>
+      <p>Con dos variables, la <b>matriz de covarianza</b> resume cómo se dispersan los datos. Gira la línea y mira cuánta varianza tienen los puntos proyectados sobre ella.</p>
+      <div class="fila"><label for="s1" title="Dispersión en el eje largo">σ₁</label><input type="range" id="s1" min="0.3" max="2.2" step="0.05" value="1.8"><output id="os1"></output></div>
+      <div class="fila"><label for="s2" title="Dispersión en el eje corto">σ₂</label><input type="range" id="s2" min="0.1" max="2.2" step="0.05" value="0.6"><output id="os2"></output></div>
+      <div class="fila"><label for="rot" title="Inclinación de la nube">∠</label><input type="range" id="rot" min="0" max="180" step="1" value="30"><output id="orot"></output></div>
+      <div class="botones"><button id="nuevos">Generar datos nuevos</button></div>
+      <hr style="border:none;border-top:1px solid var(--borde)">
+      <div class="fila"><label for="theta" title="Dirección de proyección">θ</label><input type="range" id="theta" min="0" max="180" step="1" value="100"><output id="otheta"></output></div>
+      <button class="accion" id="irMax">Buscar la dirección de máxima varianza</button>
+      <div class="lectura" id="lect2"></div>
+      <div class="aviso" id="aviso2" aria-live="polite"></div>
+    </div>
+    <div class="lienzo">
+      <canvas id="c2" width="800" height="600" aria-label="Nube de puntos con la línea de proyección y los vectores propios de la covarianza"></canvas>
+      <div class="leyenda">
+        <span><span class="clave" style="background:var(--tinta)"></span>línea de proyección (θ)</span>
+        <span><span class="clave" style="background:var(--e1)"></span>vector propio 1</span>
+        <span><span class="clave" style="background:var(--e2)"></span>vector propio 2</span>
+      </div>
+      <div class="mini">
+        <h3>Varianza de la proyección según el ángulo θ</h3>
+        <canvas id="c2b" width="800" height="170" aria-label="Curva de varianza proyectada en función del ángulo"></canvas>
+      </div>
+    </div>
+    <div class="explica">
+      <div>
+        <h3>La matriz de covarianza</h3>
+        <p>Con dos variables x e y, los datos centrados en su media se resumen en una matriz simétrica:</p>
+        <div class="formula">C = [ var(x)  cov(x,y) ; cov(x,y)  var(y) ]</div>
+        <p>La diagonal dice cuánto se dispersa cada variable por separado. El valor fuera de la diagonal dice si crecen juntas (positivo), en sentido contrario (negativo) o sin relación (cerca de cero). Inclina la nube con ∠ y mira cómo cambia ese valor.</p>
+        <h3>Proyectar es ver los datos desde una dirección</h3>
+        <p>Cada punto se proyecta sobre la línea θ: es la "sombra" que deja al mirarlo desde esa dirección. Si la sombra queda muy repartida, esa dirección conserva mucha información de los datos; si queda amontonada, conserva poca.</p>
+      </div>
+      <div>
+        <h3>La conexión con los vectores propios</h3>
+        <p>Para una dirección unitaria u, la varianza de las proyecciones se calcula con la misma matriz:</p>
+        <div class="formula">varianza en la dirección u = uᵀ·C·u</div>
+        <p>Buscar la u que hace esa varianza lo más grande posible lleva exactamente a C·u = λ·u. Es decir:</p>
+        <ul>
+          <li>El <b>vector propio 1</b> es la dirección de máxima varianza, y esa varianza vale <b>λ₁</b>.</li>
+          <li>El <b>vector propio 2</b>, perpendicular al primero, es la dirección de mínima varianza, y vale <b>λ₂</b>.</li>
+          <li>La varianza total se conserva: λ₁ + λ₂ = var(x) + var(y).</li>
+        </ul>
+        <p>Mueve θ: la curva de abajo muestra uᵀ·C·u para cada ángulo, y sus puntos extremos caen justo sobre los vectores propios.</p>
+      </div>
+    </div>
+    <div class="preguntas">
+      <h3>Preguntas</h3>
+      <p>Responde en tu cuaderno usando los controles de arriba.</p>
+      <ol>
+        <li>¿Cuántos grados hay entre la dirección de máxima varianza y la de mínima?<span class="probar"><b>Prueba:</b> mueve θ y busca el punto más alto y el más bajo de la curva.</span></li>
+      </ol>
+    </div>
+  </section>
+
+  <!-- PASO 3 -->
+  <section class="paso" id="paso3" role="tabpanel">
+    <div class="controles">
+      <h2>PCA: girar los ejes y quedarse con lo importante</h2>
+      <p>PCA usa los vectores propios de la covarianza como <b>nuevos ejes</b>. Si descartas la componente con menos varianza, pierdes poca información.</p>
+      <div class="botones" role="group" aria-label="Vista">
+        <button class="accion" id="verOriginal" aria-pressed="true">Ejes originales</button>
+        <button id="verPC" aria-pressed="false">Ejes PC1 y PC2</button>
+      </div>
+      <label style="display:flex;gap:8px;align-items:center;margin:8px 0">
+        <input type="checkbox" id="soloPC1"> Conservar solo PC1 (de 2 a 1 dimensión)
+      </label>
+      <div class="lectura" id="lect3"></div>
+      <div class="aviso" id="aviso3" aria-live="polite"></div>
+      <details open>
+        <summary>¿Y con más de dos variables?</summary>
+        <p>Con <i>p</i> variables la covarianza es una matriz <i>p×p</i> con <i>p</i> vectores propios. Se ordenan por su valor propio y se conservan los primeros <i>k</i>. El procedimiento es idéntico; solo que ya no se puede dibujar.</p>
+      </details>
+    </div>
+    <div class="lienzo">
+      <canvas id="c3" width="800" height="600" aria-label="Datos en ejes originales o girados a componentes principales"></canvas>
+      <div class="leyenda">
+        <span><span class="clave" style="background:var(--e1)"></span>PC1</span>
+        <span><span class="clave" style="background:var(--e2)"></span>PC2</span>
+        <span><span class="clave" style="background:var(--av)"></span>información perdida al descartar PC2</span>
+      </div>
+    </div>
+    <div class="explica">
+      <div>
+        <h3>PCA en cinco pasos</h3>
+        <ol>
+          <li><b>Centrar</b> los datos restando la media de cada variable. Si las variables tienen unidades distintas (°C, kWh, %), también se <b>estandarizan</b>; si no, la de números más grandes dominaría. <span class="aqui">En esta app los datos ya están centrados.</span></li>
+          <li>Calcular la <b>matriz de covarianza</b>. <span class="aqui">La viste en el paso 3.</span></li>
+          <li>Obtener sus <b>valores y vectores propios</b>. <span class="aqui">Son las flechas PC1 y PC2.</span></li>
+          <li><b>Ordenarlos</b> de mayor a menor λ. La varianza explicada por cada componente es λᵢ / Σλ. <span class="aqui">Es el porcentaje de la izquierda.</span></li>
+          <li><b>Proyectar</b> los datos sobre los primeros k vectores propios. Esos nuevos valores son las <b>componentes principales</b>. <span class="aqui">Es lo que ves al activar «Conservar solo PC1».</span></li>
+        </ol>
+      </div>
+      <div>
+        <h3>¿Qué se gana y qué se pierde?</h3>
+        <p>Al girar los ejes no se pierde nada: son los mismos datos vistos desde otras direcciones, y las nuevas variables PC1 y PC2 ya no están correlacionadas. La reducción ocurre al <b>descartar</b> componentes: los segmentos morados son la información que se pierde, y el promedio de sus longitudes al cuadrado es exactamente λ₂.</p>
+        <h3>¿Cuántas componentes conservar?</h3>
+        <p>Una regla práctica es quedarse con las primeras componentes cuya varianza acumulada supere el 80 % o 90 %. Con muchas variables correlacionadas, a veces bastan dos o tres para resumir decenas de columnas y poder graficarlas.</p>
+        <h3>Límites que conviene recordar</h3>
+        <ul>
+          <li>PCA solo encuentra relaciones <b>lineales</b>.</li>
+          <li>Busca varianza, no utilidad: la dirección con más dispersión no siempre es la que mejor separa clases o predice algo.</li>
+          <li>Cada componente mezcla todas las variables, así que interpretarla requiere mirar sus pesos.</li>
+        </ul>
+      </div>
+    </div>
+    <div class="preguntas">
+      <h3>Preguntas</h3>
+      <p>Responde en tu cuaderno usando los controles de arriba.</p>
+      <ol>
+        <li>Al girar los ejes, ¿la nube cambia de forma?<span class="probar"><b>Prueba:</b> alterna entre <i>Ejes originales</i> y <i>Ejes PC1 y PC2</i>.</span></li>
+        <li>¿Qué nube pierde menos información al quedarse solo con PC1: una alargada o una redonda?<span class="probar"><b>Prueba:</b> activa <i>Conservar solo PC1</i>. Luego, en el paso 3, cambia σ₂ y regresa aquí.</span></li>
+      </ol>
+    </div>
+  </section>
+</main>
+
+
+
+<script>
+(() => {
+  "use strict";
+  const $ = id => document.getElementById(id);
+  const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+  const f = (x, d = 2) => (Math.abs(x) < 5e-4 ? 0 : x).toFixed(d);
+  const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  /* ---------- Utilidades de lienzo ---------- */
+  function preparar(canvas, alcance) {
+    const ctx = canvas.getContext("2d");
+    const obj = { canvas, ctx, alcance, w: 0, h: 0, esc: 1 };
+    obj.ajustar = () => {
+      const r = canvas.getBoundingClientRect();
+      const dpr = window.devicePixelRatio || 1;
+      const ratio = canvas.height / canvas.width;
+      obj.w = r.width; obj.h = r.width * (canvas.dataset.ratio ? +canvas.dataset.ratio : ratio);
+      canvas.dataset.ratio = obj.h / obj.w;
+      canvas.width = obj.w * dpr; canvas.height = obj.h * dpr;
+      canvas.style.height = obj.h + "px";
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      obj.esc = Math.min(obj.w, obj.h) / (2 * obj.alcance);
+    };
+    obj.X = x => obj.w / 2 + x * obj.esc;
+    obj.Y = y => obj.h / 2 - y * obj.esc;
+    obj.inv = (px, py) => [(px - obj.w / 2) / obj.esc, (obj.h / 2 - py) / obj.esc];
+    return obj;
+  }
+  function reticula(L, transf) {
+    const { ctx } = L;
+    ctx.clearRect(0, 0, L.w, L.h);
+    const lim = Math.ceil(Math.max(L.w, L.h) / L.esc / 2) + 1;
+    ctx.lineWidth = 1; ctx.strokeStyle = css("--reticula");
+    for (let i = -lim; i <= lim; i++) {
+      ctx.beginPath(); ctx.moveTo(L.X(i), 0); ctx.lineTo(L.X(i), L.h); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(0, L.Y(i)); ctx.lineTo(L.w, L.Y(i)); ctx.stroke();
+    }
+    ctx.strokeStyle = css("--eje"); ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.moveTo(L.X(0), 0); ctx.lineTo(L.X(0), L.h); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(0, L.Y(0)); ctx.lineTo(L.w, L.Y(0)); ctx.stroke();
+    if (transf) { // cuadrícula deformada por la matriz
+      ctx.strokeStyle = css("--av"); ctx.globalAlpha = 0.18; ctx.lineWidth = 1;
+      const [a, b, c, d] = transf, M = 6;
+      for (let i = -M; i <= M; i++) {
+        ctx.beginPath(); ctx.moveTo(L.X(a * i + b * -M), L.Y(c * i + d * -M)); ctx.lineTo(L.X(a * i + b * M), L.Y(c * i + d * M)); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(L.X(a * -M + b * i), L.Y(c * -M + d * i)); ctx.lineTo(L.X(a * M + b * i), L.Y(c * M + d * i)); ctx.stroke();
+      }
+      ctx.globalAlpha = 1;
+    }
+  }
+  function flecha(L, x, y, color, grosor = 3, etiqueta = "", x0 = 0, y0 = 0) {
+    const { ctx } = L;
+    const X0 = L.X(x0), Y0 = L.Y(y0), X1 = L.X(x0 + x), Y1 = L.Y(y0 + y);
+    const ang = Math.atan2(Y1 - Y0, X1 - X0), long = Math.hypot(X1 - X0, Y1 - Y0);
+    if (long < 2) return;
+    const p = Math.min(14, long * 0.4);
+    ctx.strokeStyle = ctx.fillStyle = color; ctx.lineWidth = grosor; ctx.lineCap = "round";
+    ctx.beginPath(); ctx.moveTo(X0, Y0); ctx.lineTo(X1 - p * 0.6 * Math.cos(ang), Y1 - p * 0.6 * Math.sin(ang)); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(X1, Y1);
+    ctx.lineTo(X1 - p * Math.cos(ang - 0.4), Y1 - p * Math.sin(ang - 0.4));
+    ctx.lineTo(X1 - p * Math.cos(ang + 0.4), Y1 - p * Math.sin(ang + 0.4)); ctx.closePath(); ctx.fill();
+    if (etiqueta) {
+      ctx.font = "700 16px 'Atkinson Hyperlegible', system-ui, sans-serif";
+      ctx.fillText(etiqueta, X1 + 8 * Math.cos(ang) + 4, Y1 + 8 * Math.sin(ang) + 5);
+    }
+  }
+  function lineaInfinita(L, ux, uy, color, dash = [8, 6], grosor = 2) {
+    const { ctx } = L, R = 50;
+    ctx.save(); ctx.setLineDash(dash); ctx.strokeStyle = color; ctx.lineWidth = grosor;
+    ctx.beginPath(); ctx.moveTo(L.X(-R * ux), L.Y(-R * uy)); ctx.lineTo(L.X(R * ux), L.Y(R * uy)); ctx.stroke();
+    ctx.restore();
+  }
+
+  /* ---------- Álgebra 2×2 ---------- */
+  function eigen2(a, b, c, d) {
+    const tr = a + d, det = a * d - b * c, disc = tr * tr / 4 - det;
+    if (disc < -1e-9) return { reales: false, tr, det };
+    const r = Math.sqrt(Math.max(disc, 0));
+    const l1 = tr / 2 + r, l2 = tr / 2 - r;
+    const vec = l => {
+      let v;
+      if (Math.abs(b) > 1e-9) v = [b, l - a];
+      else if (Math.abs(c) > 1e-9) v = [l - d, c];
+      else v = Math.abs(l - a) < 1e-9 ? [1, 0] : [0, 1];
+      const n = Math.hypot(v[0], v[1]); return [v[0] / n, v[1] / n];
+    };
+    let v1 = vec(l1), v2 = vec(l2);
+    if (Math.abs(b) < 1e-9 && Math.abs(c) < 1e-9 && Math.abs(a - d) < 1e-9) v2 = [0, 1];
+    return { reales: true, l1, l2, v1, v2, tr, det };
+  }
+
+  /* =========================================================
+     PASO T: TRANSFORMACIÓN LINEAL
+     ========================================================= */
+  const LT = preparar($("cT"), 3.2);
+  let tAnim = 1, arrastreT = null;
+  const leerT = () => ["ta", "tb", "tc", "td"].map(k => +$(k).value);
+  const F = [[0.2,0.15],[0.35,0.15],[0.35,0.5],[0.6,0.5],[0.6,0.62],[0.35,0.62],[0.35,0.75],[0.7,0.75],[0.7,0.88],[0.2,0.88]];
+  function dibujarT() {
+    const [a0, b0, c0, d0] = leerT();
+    ["ta", "tb", "tc", "td"].forEach((k, i) => $("o" + k).textContent = f([a0, b0, c0, d0][i], 1));
+    $("verMatrizT").innerHTML = `<span style="color:var(--v)">${f(a0,1)}</span><span style="color:var(--av)">${f(b0,1)}</span><span style="color:var(--v)">${f(c0,1)}</span><span style="color:var(--av)">${f(d0,1)}</span>`;
+    // interpolación desde la identidad (para la animación)
+    const a = 1 + (a0 - 1) * tAnim, b = b0 * tAnim, c = c0 * tAnim, d = 1 + (d0 - 1) * tAnim;
+    reticula(LT, [a, b, c, d]);
+    const ctx = LT.ctx, T = ([x, y]) => [a * x + b * y, c * x + d * y];
+    // cuadrado original (contorno) y transformado (relleno)
+    const cuadro = [[0,0],[1,0],[1,1],[0,1]];
+    ctx.setLineDash([4,4]); ctx.strokeStyle = css("--suave"); ctx.lineWidth = 1.5;
+    ctx.beginPath(); cuadro.forEach(([x,y],i)=> i?ctx.lineTo(LT.X(x),LT.Y(y)):ctx.moveTo(LT.X(x),LT.Y(y))); ctx.closePath(); ctx.stroke(); ctx.setLineDash([]);
+    ctx.fillStyle = css("--e1"); ctx.globalAlpha = 0.18;
+    ctx.beginPath(); cuadro.map(T).forEach(([x,y],i)=> i?ctx.lineTo(LT.X(x),LT.Y(y)):ctx.moveTo(LT.X(x),LT.Y(y))); ctx.closePath(); ctx.fill();
+    ctx.globalAlpha = 1; ctx.strokeStyle = css("--e1"); ctx.lineWidth = 2; ctx.stroke();
+    // letra F transformada
+    ctx.fillStyle = css("--tinta"); ctx.globalAlpha = 0.85;
+    ctx.beginPath(); F.map(T).forEach(([x,y],i)=> i?ctx.lineTo(LT.X(x),LT.Y(y)):ctx.moveTo(LT.X(x),LT.Y(y))); ctx.closePath(); ctx.fill();
+    ctx.globalAlpha = 1;
+    flecha(LT, a, c, css("--v"), 4, "î");
+    flecha(LT, b, d, css("--av"), 4, "ĵ");
+    [[a,c,"--v"],[b,d,"--av"]].forEach(([x,y,col])=>{ctx.fillStyle=css(col);ctx.beginPath();ctx.arc(LT.X(x),LT.Y(y),7,0,7);ctx.fill();});
+
+    const det = a0 * d0 - b0 * c0;
+    $("lectT").innerHTML =
+      `<div><span class="clave" style="background:var(--v)"></span>î = (1, 0) → (<b>${f(a0,1)}</b>, <b>${f(c0,1)}</b>)</div>
+       <div><span class="clave" style="background:var(--av)"></span>ĵ = (0, 1) → (<b>${f(b0,1)}</b>, <b>${f(d0,1)}</b>)</div>
+       <div>Ejemplo: (2, 1) → 2·(${f(a0,1)}, ${f(c0,1)}) + 1·(${f(b0,1)}, ${f(d0,1)}) = (<b>${f(2*a0+b0,1)}</b>, <b>${f(2*c0+d0,1)}</b>)</div>
+       <div>Determinante = ${f(a0,1)}·${f(d0,1)} − ${f(b0,1)}·${f(c0,1)} = <b>${f(det)}</b></div>`;
+    const av = $("avisoT");
+    av.className = "aviso";
+    if (Math.abs(det) < 0.05) { av.className = "aviso exito"; av.innerHTML = "<b>El plano se aplastó sobre una línea.</b> El cuadrado perdió su área y ya no se puede recuperar la posición original: se perdió una dimensión. PCA hace algo parecido, pero eligiendo la línea que menos información pierde."; }
+    else if (det < 0) av.innerHTML = `<b>El plano se volteó.</b> La F aparece en espejo porque el determinante es negativo. El área se multiplica por ${f(Math.abs(det))}.`;
+    else if (Math.abs(a0*a0+c0*c0-1)<0.02 && Math.abs(b0*b0+d0*d0-1)<0.02 && Math.abs(a0*b0+c0*d0)<0.02) av.innerHTML = "<b>Es una rotación (o la identidad).</b> Las columnas miden 1 y son perpendiculares: nada se estira y el área no cambia. Así son los giros que usa PCA.";
+    else av.innerHTML = `El cuadrado de área 1 ahora tiene área <b>${f(det)}</b>. Prueba los ejemplos y fíjate en qué casos la F se voltea o desaparece.`;
+  }
+  ["ta","tb","tc","td"].forEach(k => $(k).addEventListener("input", () => { tAnim = 1; dibujarT(); }));
+  document.querySelectorAll("[data-t]").forEach(bt => bt.addEventListener("click", () => {
+    const vals = bt.dataset.t.split(",");
+    ["ta","tb","tc","td"].forEach((k,i) => $(k).value = vals[i]); tAnim = 1; dibujarT();
+  }));
+  $("animarT").addEventListener("click", () => {
+    if (reduceMotion) { tAnim = 1; dibujarT(); return; }
+    const t0 = performance.now(), dur = 1600;
+    const paso = now => { const t = Math.min((now - t0) / dur, 1); tAnim = t < .5 ? 2*t*t : 1 - Math.pow(-2*t+2,2)/2; dibujarT(); if (t < 1) requestAnimationFrame(paso); };
+    requestAnimationFrame(paso);
+  });
+  $("cT").addEventListener("pointerdown", e => {
+    const r = e.target.getBoundingClientRect(), [x, y] = LT.inv(e.clientX - r.left, e.clientY - r.top);
+    const [a, b, c, d] = leerT();
+    const di = Math.hypot(x - a, y - c), dj = Math.hypot(x - b, y - d);
+    if (Math.min(di, dj) * LT.esc < 28) { arrastreT = di <= dj ? "i" : "j"; e.target.setPointerCapture(e.pointerId); tAnim = 1; }
+  });
+  $("cT").addEventListener("pointermove", e => {
+    if (!arrastreT) return;
+    const r = e.target.getBoundingClientRect(); let [x, y] = LT.inv(e.clientX - r.left, e.clientY - r.top);
+    x = Math.max(-3, Math.min(3, Math.round(x * 10) / 10)); y = Math.max(-3, Math.min(3, Math.round(y * 10) / 10));
+    if (arrastreT === "i") { $("ta").value = x; $("tc").value = y; } else { $("tb").value = x; $("td").value = y; }
+    dibujarT();
+  });
+  $("cT").addEventListener("pointerup", () => arrastreT = null);
+
+  /* =========================================================
+     PASO 1
+     ========================================================= */
+  const L1 = preparar($("c1"), 4.2);
+  let v = [1.5, 0.3], animando = false;
+  const leerA = () => ["a", "b", "c", "d"].map(k => +$(k).value);
+
+  function dibujar1() {
+    const [a, b, c, d] = leerA();
+    ["a", "b", "c", "d"].forEach((k, i) => $("o" + k).textContent = f([a, b, c, d][i], 1));
+    $("verMatriz").innerHTML = `<span>${f(a,1)}</span><span>${f(b,1)}</span><span>${f(c,1)}</span><span>${f(d,1)}</span>`;
+    reticula(L1, [a, b, c, d]);
+    const E = eigen2(a, b, c, d), ctx = L1.ctx;
+
+    // círculo unitario y su imagen
+    ctx.save(); ctx.strokeStyle = css("--v"); ctx.globalAlpha = 0.35; ctx.lineWidth = 1.5; ctx.setLineDash([3, 4]);
+    ctx.beginPath();
+    for (let t = 0; t <= 64; t++) { const s = t / 64 * 2 * Math.PI; const x = Math.cos(s) * Math.hypot(...v), y = Math.sin(s) * Math.hypot(...v); t ? ctx.lineTo(L1.X(x), L1.Y(y)) : ctx.moveTo(L1.X(x), L1.Y(y)); }
+    ctx.stroke(); ctx.restore();
+
+    if (E.reales) {
+      lineaInfinita(L1, ...E.v1, css("--e1"));
+      if (Math.abs(E.l1 - E.l2) > 1e-6 || (Math.abs(b) < 1e-9 && Math.abs(c) < 1e-9)) lineaInfinita(L1, ...E.v2, css("--e2"));
+    }
+    const Av = [a * v[0] + b * v[1], c * v[0] + d * v[1]];
+    flecha(L1, ...Av, css("--av"), 4, "A·v");
+    flecha(L1, ...v, css("--v"), 4, "v");
+    // asa para arrastrar
+    ctx.fillStyle = css("--v"); ctx.beginPath(); ctx.arc(L1.X(v[0]), L1.Y(v[1]), 8, 0, 2 * Math.PI); ctx.fill();
+
+    // lectura
+    const nv = Math.hypot(...v), nAv = Math.hypot(...Av);
+    const cruz = v[0] * Av[1] - v[1] * Av[0], punto = v[0] * Av[0] + v[1] * Av[1];
+    const angulo = nAv < 1e-9 ? 0 : Math.abs(Math.atan2(cruz, punto)) * 180 / Math.PI;
+    const paralelo = nAv < 1e-6 || angulo < 2.5 || angulo > 177.5;
+    let html = `<div>Traza = ${f(E.tr)} · Determinante = ${f(E.det)}</div>`;
+    if (E.reales) {
+      html += `<div><span class="clave" style="background:var(--e1)"></span>λ₁ = <b>${f(E.l1)}</b>, v₁ = (${f(E.v1[0])}, ${f(E.v1[1])})</div>`;
+      html += `<div><span class="clave" style="background:var(--e2)"></span>λ₂ = <b>${f(E.l2)}</b>, v₂ = (${f(E.v2[0])}, ${f(E.v2[1])})</div>`;
+    } else {
+      html += `<div>Los valores propios son complejos: no hay direcciones reales que se conserven.</div>`;
+    }
+    html += `<div>Ángulo entre v y A·v: <b>${f(angulo, 0)}°</b></div>`;
+    $("lect1").innerHTML = html;
+    const av = $("aviso1");
+    if (paralelo) {
+      const lam = nAv < 1e-6 ? 0 : (punto > 0 ? 1 : -1) * nAv / nv;
+      av.className = "aviso exito";
+      av.innerHTML = `<b>v es un vector propio.</b> A·v apunta en la misma línea que v: A·v = ${f(lam)}·v.` +
+        (lam < 0 ? " El signo negativo significa que se voltea." : "");
+    } else {
+      av.className = "aviso";
+      av.textContent = E.reales
+        ? "A·v se sale de la línea de v. Lleva v hasta una línea punteada y observa qué pasa."
+        : "Esta matriz gira todos los vectores: prueba Rotación y luego Simétrica para comparar.";
+    }
+  }
+  ["a", "b", "c", "d"].forEach(k => $(k).addEventListener("input", dibujar1));
+  document.querySelectorAll("[data-m]").forEach(bt => bt.addEventListener("click", () => {
+    bt.dataset.m.split(",").forEach((x, i) => $("abcd"[i]).value = x); dibujar1();
+  }));
+  let arrastrando = false;
+  $("c1").addEventListener("pointerdown", e => {
+    const r = e.target.getBoundingClientRect(); const p = L1.inv(e.clientX - r.left, e.clientY - r.top);
+    arrastrando = true; e.target.setPointerCapture(e.pointerId); v = p; dibujar1();
+  });
+  $("c1").addEventListener("pointermove", e => {
+    if (!arrastrando) return;
+    const r = e.target.getBoundingClientRect(); v = L1.inv(e.clientX - r.left, e.clientY - r.top); dibujar1();
+  });
+  $("c1").addEventListener("pointerup", () => arrastrando = false);
+  $("barrido").addEventListener("click", () => {
+    if (animando) return;
+    const radio = Math.max(Math.hypot(...v), 1), ini = Math.atan2(v[1], v[0]);
+    if (reduceMotion) { dibujar1(); return; }
+    animando = true; const t0 = performance.now(), dur = 6000;
+    const paso = now => {
+      const t = Math.min((now - t0) / dur, 1), s = ini + t * 2 * Math.PI;
+      v = [radio * Math.cos(s), radio * Math.sin(s)]; dibujar1();
+      if (t < 1) requestAnimationFrame(paso); else animando = false;
+    };
+    requestAnimationFrame(paso);
+  });
+
+  /* =========================================================
+     PASO 2 y 3: datos compartidos
+     ========================================================= */
+  let base = [];          // puntos N(0,1) sin transformar
+  let datos = [];         // puntos centrados
+  let cov = null, E = null;
+  function normal() { let u = 0, w = 0; while (!u) u = Math.random(); while (!w) w = Math.random(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * w); }
+  function nuevosBase() { base = Array.from({ length: 180 }, () => [normal(), normal()]); }
+  function construirDatos() {
+    const s1 = +$("s1").value, s2 = +$("s2").value, ang = +$("rot").value * Math.PI / 180;
+    const cs = Math.cos(ang), sn = Math.sin(ang);
+    let pts = base.map(([x, y]) => { const X = x * s1, Y = y * s2; return [cs * X - sn * Y, sn * X + cs * Y]; });
+    const mx = pts.reduce((s, p) => s + p[0], 0) / pts.length, my = pts.reduce((s, p) => s + p[1], 0) / pts.length;
+    datos = pts.map(([x, y]) => [x - mx, y - my]);
+    const n = datos.length;
+    let sxx = 0, syy = 0, sxy = 0;
+    datos.forEach(([x, y]) => { sxx += x * x; syy += y * y; sxy += x * y; });
+    cov = [sxx / (n - 1), sxy / (n - 1), sxy / (n - 1), syy / (n - 1)];
+    E = eigen2(...cov);
+    if (E.v1[0] < 0) E.v1 = E.v1.map(z => -z);
+    E.v2 = [-E.v1[1], E.v1[0]];
+  }
+  const varProy = th => { const u = [Math.cos(th), Math.sin(th)]; return cov[0] * u[0] * u[0] + 2 * cov[1] * u[0] * u[1] + cov[3] * u[1] * u[1]; };
+  const angE1 = () => { let a = Math.atan2(E.v1[1], E.v1[0]) * 180 / Math.PI; if (a < 0) a += 180; return a % 180; };
+
+  /* ---------- PASO 2 ---------- */
+  const L2 = preparar($("c2"), 5);
+  const L2b = $("c2b").getContext("2d");
+  function dibujar2() {
+    $("os1").textContent = f(+$("s1").value, 1);
+    $("os2").textContent = f(+$("s2").value, 1);
+    $("orot").textContent = $("rot").value + "°";
+    $("otheta").textContent = $("theta").value + "°";
+    reticula(L2);
+    const ctx = L2.ctx, th = +$("theta").value * Math.PI / 180, u = [Math.cos(th), Math.sin(th)];
+    // proyecciones
+    ctx.strokeStyle = css("--suave"); ctx.globalAlpha = 0.25; ctx.lineWidth = 1;
+    datos.forEach(([x, y]) => { const t = x * u[0] + y * u[1]; ctx.beginPath(); ctx.moveTo(L2.X(x), L2.Y(y)); ctx.lineTo(L2.X(t * u[0]), L2.Y(t * u[1])); ctx.stroke(); });
+    ctx.globalAlpha = 1;
+    datos.forEach(([x, y]) => { ctx.fillStyle = css("--punto"); ctx.beginPath(); ctx.arc(L2.X(x), L2.Y(y), 3.2, 0, 7); ctx.fill(); });
+    lineaInfinita(L2, ...u, css("--tinta"), [], 2);
+    datos.forEach(([x, y]) => { const t = x * u[0] + y * u[1]; ctx.fillStyle = css("--tinta"); ctx.beginPath(); ctx.arc(L2.X(t * u[0]), L2.Y(t * u[1]), 2.4, 0, 7); ctx.fill(); });
+    flecha(L2, ...E.v1.map(z => z * 2 * Math.sqrt(E.l1)), css("--e1"), 4, "v₁");
+    flecha(L2, ...E.v2.map(z => z * 2 * Math.sqrt(Math.max(E.l2, 0))), css("--e2"), 4, "v₂");
+
+    // curva varianza vs ángulo
+    const cv = $("c2b"), dpr = window.devicePixelRatio || 1, W = cv.getBoundingClientRect().width, H = 170;
+    cv.width = W * dpr; cv.height = H * dpr; cv.style.height = H + "px"; L2b.setTransform(dpr, 0, 0, dpr, 0, 0);
+    L2b.clearRect(0, 0, W, H);
+    const m = { l: 44, r: 12, t: 10, b: 26 }, maxV = E.l1 * 1.1;
+    const gx = deg => m.l + deg / 180 * (W - m.l - m.r), gy = val => H - m.b - val / maxV * (H - m.t - m.b);
+    L2b.strokeStyle = css("--eje"); L2b.lineWidth = 1;
+    L2b.beginPath(); L2b.moveTo(m.l, m.t); L2b.lineTo(m.l, H - m.b); L2b.lineTo(W - m.r, H - m.b); L2b.stroke();
+    L2b.fillStyle = css("--suave"); L2b.font = "13px 'Atkinson Hyperlegible', system-ui, sans-serif";
+    [0, 45, 90, 135, 180].forEach(g => L2b.fillText(g + "°", gx(g) - 10, H - 8));
+    L2b.fillText(f(E.l1, 1), 4, gy(E.l1) + 4); L2b.fillText(f(E.l2, 1), 4, gy(E.l2) + 4);
+    L2b.strokeStyle = css("--tinta"); L2b.lineWidth = 2; L2b.beginPath();
+    for (let g = 0; g <= 180; g++) { const val = varProy(g * Math.PI / 180); g ? L2b.lineTo(gx(g), gy(val)) : L2b.moveTo(gx(g), gy(val)); }
+    L2b.stroke();
+    const a1 = angE1(), a2 = (a1 + 90) % 180;
+    [[a1, "--e1", E.l1], [a2, "--e2", E.l2]].forEach(([g, col, val]) => { L2b.fillStyle = css(col); L2b.beginPath(); L2b.arc(gx(g), gy(val), 6, 0, 7); L2b.fill(); });
+    const vt = varProy(th);
+    L2b.strokeStyle = css("--av"); L2b.setLineDash([4, 4]); L2b.beginPath(); L2b.moveTo(gx(+$("theta").value), m.t); L2b.lineTo(gx(+$("theta").value), H - m.b); L2b.stroke(); L2b.setLineDash([]);
+
+    const tot = E.l1 + E.l2;
+    $("lect2").innerHTML =
+      `<div>Covarianza C = <span class="matriz"><span>${f(cov[0])}</span><span>${f(cov[1])}</span><span>${f(cov[2])}</span><span>${f(cov[3])}</span></span></div>
+       <div><span class="clave" style="background:var(--e1)"></span>λ₁ = <b>${f(E.l1)}</b> (${f(100 * E.l1 / tot, 0)} % de la varianza) a ${f(a1, 0)}°</div>
+       <div><span class="clave" style="background:var(--e2)"></span>λ₂ = <b>${f(E.l2)}</b> (${f(100 * E.l2 / tot, 0)} %) a ${f(a2, 0)}°</div>
+       <div>Varianza proyectada en θ = ${$("theta").value}°: <b>${f(vt)}</b></div>`;
+    const dif = Math.min(Math.abs(+$("theta").value - a1), 180 - Math.abs(+$("theta").value - a1));
+    const av = $("aviso2");
+    if (dif <= 1.5) { av.className = "aviso exito"; av.innerHTML = `<b>Máxima varianza.</b> La línea coincide con el vector propio 1 y la varianza proyectada es exactamente λ₁ = ${f(E.l1)}.`; }
+    else if (Math.min(Math.abs(+$("theta").value - a2), 180 - Math.abs(+$("theta").value - a2)) <= 1.5) { av.className = "aviso exito"; av.innerHTML = `<b>Mínima varianza.</b> Estás sobre el vector propio 2: la varianza proyectada es λ₂ = ${f(E.l2)}.`; }
+    else { av.className = "aviso"; av.textContent = `Te faltan ${f(dif, 0)}° para la dirección de máxima dispersión. Mueve θ y sigue el punto de la curva.`; }
+  }
+  $("theta").addEventListener("input", dibujar2);
+  ["s1", "s2", "rot"].forEach(k => $(k).addEventListener("input", () => { construirDatos(); dibujar2(); dibujar3(); }));
+  $("nuevos").addEventListener("click", () => { nuevosBase(); construirDatos(); dibujar2(); dibujar3(); });
+  $("irMax").addEventListener("click", () => {
+    const destino = Math.round(angE1()), inicio = +$("theta").value;
+    if (reduceMotion) { $("theta").value = destino; dibujar2(); return; }
+    let dif = destino - inicio; if (dif > 90) dif -= 180; if (dif < -90) dif += 180;
+    const t0 = performance.now(), dur = 900;
+    const paso = now => { const t = Math.min((now - t0) / dur, 1), e = 1 - Math.pow(1 - t, 3);
+      $("theta").value = ((inicio + dif * e) % 180 + 180) % 180; dibujar2(); if (t < 1) requestAnimationFrame(paso); };
+    requestAnimationFrame(paso);
+  });
+
+  /* ---------- PASO 3 ---------- */
+  const L3 = preparar($("c3"), 5);
+  let giro = 0;  // 0 = ejes originales, 1 = ejes PC
+  function dibujar3() {
+    reticula(L3);
+    const ctx = L3.ctx, solo = $("soloPC1").checked;
+    const phi = Math.atan2(E.v1[1], E.v1[0]) * giro;   // girar para alinear PC1 con x
+    const R = ([x, y]) => [Math.cos(-phi) * x - Math.sin(-phi) * y, Math.sin(-phi) * x + Math.cos(-phi) * y];
+    const e1 = R(E.v1), e2 = R(E.v2);
+    lineaInfinita(L3, ...e1, css("--e1"), [8, 6], 2);
+    lineaInfinita(L3, ...e2, css("--e2"), [8, 6], 2);
+    let err = 0;
+    datos.forEach(p => {
+      const q = R(p), t = p[0] * E.v1[0] + p[1] * E.v1[1], rec = R([t * E.v1[0], t * E.v1[1]]);
+      if (solo) {
+        err += (p[0] - t * E.v1[0]) ** 2 + (p[1] - t * E.v1[1]) ** 2;
+        ctx.strokeStyle = css("--av"); ctx.globalAlpha = 0.45; ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.moveTo(L3.X(q[0]), L3.Y(q[1])); ctx.lineTo(L3.X(rec[0]), L3.Y(rec[1])); ctx.stroke();
+        ctx.globalAlpha = 0.25; ctx.fillStyle = css("--punto"); ctx.beginPath(); ctx.arc(L3.X(q[0]), L3.Y(q[1]), 3, 0, 7); ctx.fill();
+        ctx.globalAlpha = 1; ctx.fillStyle = css("--e1"); ctx.beginPath(); ctx.arc(L3.X(rec[0]), L3.Y(rec[1]), 3.2, 0, 7); ctx.fill();
+      } else {
+        ctx.fillStyle = css("--punto"); ctx.beginPath(); ctx.arc(L3.X(q[0]), L3.Y(q[1]), 3.2, 0, 7); ctx.fill();
+      }
+    });
+    flecha(L3, ...e1.map(z => z * 2 * Math.sqrt(E.l1)), css("--e1"), 4, "PC1");
+    flecha(L3, ...e2.map(z => z * 2 * Math.sqrt(Math.max(E.l2, 0))), css("--e2"), 4, "PC2");
+
+    const tot = E.l1 + E.l2, cons = solo ? E.l1 / tot : 1;
+    $("lect3").innerHTML =
+      `<div>Dimensiones: <b>${solo ? "2 → 1" : "2"}</b></div>
+       <div>Varianza conservada: <b>${f(100 * cons, 1)} %</b></div>
+       ${solo ? `<div>Varianza perdida: <b>${f(100 * E.l2 / tot, 1)} %</b> (es λ₂ / (λ₁ + λ₂))</div>` : ""}
+       <div>Coordenada de un punto en PC1: z = x·${f(E.v1[0])} + y·${f(E.v1[1])}</div>`;
+    const av = $("aviso3");
+    if (solo) {
+      av.className = cons > 0.85 ? "aviso exito" : "aviso";
+      av.innerHTML = cons > 0.85
+        ? `Con una sola dimensión conservas el ${f(100 * cons, 0)} % de la información: los segmentos morados (lo que se pierde) son cortos.`
+        : `Aquí solo conservas el ${f(100 * cons, 0)} %: los segmentos morados son largos. Ve al paso 3 y acerca σ₂ a σ₁ o aléjalos para comparar.`;
+    } else {
+      av.className = "aviso";
+      av.textContent = giro > 0.99
+        ? "Ahora los ejes son PC1 y PC2: los mismos datos, vistos desde las direcciones propias. Las nuevas variables ya no están correlacionadas."
+        : "Pulsa «Ejes PC1 y PC2» para girar los datos hasta alinearlos con los vectores propios.";
+    }
+  }
+  function animarGiro(destino) {
+    ["verOriginal", "verPC"].forEach((id, i) => { const on = (i === destino); $(id).className = on ? "accion" : ""; $(id).setAttribute("aria-pressed", on); });
+    if (reduceMotion) { giro = destino; dibujar3(); return; }
+    const ini = giro, t0 = performance.now(), dur = 1100;
+    const paso = now => { const t = Math.min((now - t0) / dur, 1), e = t < .5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+      giro = ini + (destino - ini) * e; dibujar3(); if (t < 1) requestAnimationFrame(paso); };
+    requestAnimationFrame(paso);
+  }
+  $("verOriginal").addEventListener("click", () => animarGiro(0));
+  $("verPC").addEventListener("click", () => animarGiro(1));
+  $("soloPC1").addEventListener("change", dibujar3);
+
+  /* ---------- Navegación y tamaño ---------- */
+  document.querySelectorAll("nav button").forEach(bt => bt.addEventListener("click", () => {
+    document.querySelectorAll("nav button").forEach(b => b.setAttribute("aria-selected", b === bt));
+    document.querySelectorAll(".paso").forEach(s => s.classList.toggle("activo", s.id === "paso" + bt.dataset.paso));
+    todo();
+  }));
+  function todo() { [LT, L1, L2, L3].forEach(L => { if (L.canvas.getBoundingClientRect().width) L.ajustar(); }); dibujarT(); dibujar1(); dibujar2(); dibujar3(); }
+  new ResizeObserver(todo).observe(document.querySelector("main"));
+  matchMedia("(prefers-color-scheme: dark)").addEventListener("change", todo);
+  new MutationObserver(todo).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+
+  nuevosBase(); construirDatos();
+  document.fonts && document.fonts.ready.then(todo);
+  todo();
+})();
+</script>
+</body>
+</html>
