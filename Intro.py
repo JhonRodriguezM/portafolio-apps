@@ -15,7 +15,8 @@ with st.sidebar:
         "Las aplicaciones de esta página las desarrollé durante el semestre en el curso de "
         "Computación Avanzada de la I.U. Pascual Bravo. Cada una acompaña una sesión del curso: "
         "álgebra lineal, cálculo, complejidad, preparación de datos, regresión, series de tiempo, "
-        "clasificación y PCA, desplegadas en Streamlit Cloud."
+        "clasificación, PCA, programación orientada a objetos y procesamiento en paralelo, "
+        "desplegadas en Streamlit Cloud, además de modelos publicados con Vercel y Docker."
     )
     st.write(parrafo)
 
@@ -130,6 +131,44 @@ APPS = [
         "etiqueta": "PCA",
         "url": "pages/2_Vectores_propios_y_PCA.py",
     },
+    {
+        "titulo": "POO: modelo de consumo energético",
+        "imagen": "poo.jpg",
+        "texto": "El código suelto se convierte en clases reutilizables: un Estandarizador y una "
+                 "RegresionLineal se combinan en un FlujoModelo que se carga y se prueba en la app.",
+        "etiqueta": "POO",
+        "url": "https://jhonrodriguez-poo-energia.streamlit.app/",
+    },
+    {
+        "titulo": "Eficiencia y paralelismo en Python",
+        "imagen": "paralelismo.jpg",
+        "texto": "Experimentos con hilos, procesos y NumPy para comparar tiempos, y la ley de "
+                 "Amdahl para ver cuánto se gana realmente al repartir el trabajo.",
+        "etiqueta": "Paralelismo",
+        "url": "https://paralelismo-ssyk5hkcp5b5mm2wrza7sm.streamlit.app/",
+    },
+    {
+        "titulo": "Modelos en la nube con Vercel",
+        "imagen": "vercel.jpg",
+        "texto": "Tres modelos entrenados en Colab y publicados como apps web con su API: "
+                 "estimador de vivienda (regresión lineal), ¿lloverá mañana? (regresión "
+                 "logística) y ¿lloverá mañana? con KNN.",
+        "enlaces": [
+            ("Vivienda", "https://jhonrodriguez-vivienda.vercel.app"),
+            ("Lluvia", "https://jhonrodriguez-lluvia.vercel.app"),
+            ("Lluvia con KNN", "https://jhonrodriguez-lluvia-knn.vercel.app"),
+        ],
+    },
+    {
+        "titulo": "Despliegue con Docker",
+        "imagen": "docker.jpg",
+        "texto": "El modelo de sensación térmica entrenado en Colab, servido con FastAPI y "
+                 "empaquetado en una imagen de Docker pública que se publica sola con cada push "
+                 "(ghcr.io/jhonrodriguezm/docker-sensacion-api:2).",
+        "enlaces": [
+            ("Código en GitHub", "https://github.com/JhonRodriguezM/docker-sensacion-api"),
+        ],
+    },
 ]
 
 for inicio in range(0, len(APPS), 3):
@@ -141,9 +180,12 @@ for inicio in range(0, len(APPS), 3):
             if imagen.exists():
                 st.image(Image.open(imagen), width=200)
             st.write(app["texto"])
-            if app["url"].startswith("pages/"):
+            if app.get("enlaces"):
+                for nombre, destino in app["enlaces"]:
+                    st.write(f"{nombre}: [Enlace]({destino})")
+            elif app.get("url", "").startswith("pages/"):
                 st.page_link(app["url"], label=f"{app['etiqueta']}: abrir aquí", icon="➡️")
-            elif app["url"]:
+            elif app.get("url"):
                 st.write(f"{app['etiqueta']}: [Enlace]({app['url']})")
             else:
                 st.caption("Enlace pendiente.")
